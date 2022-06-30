@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cassert>
 
 using namespace std;
 
@@ -109,8 +110,10 @@ public:
                 } else {
                     return lhs.relevance > rhs.relevance;
                 }
-             }
-        );
+             });
+
+
+
 
         if (find_doc.size() > MAX_RESULT_DOCUMENT_COUNT) {
             find_doc.resize(MAX_RESULT_DOCUMENT_COUNT);
@@ -297,9 +300,326 @@ private:
 };
 
 
-// ==================== для примера =========================
+
+// Всё Что касается тестирования
+template <typename AnyVector>
+ostream& operator<<(ostream &out, const vector<AnyVector> &container) {
+    bool first_flag = false;
+    out << "[";
+    for (const auto element : container) {
+        if(first_flag) out << ", "s << element ;
+        else {
+          out << element ;
+          first_flag = true;
+        }
+
+    }
+    out << "]";
+    return out;
+}
+
+template <typename AnySet>
+ostream& operator<<(ostream &out, const set<AnySet> &container) {
+    bool first_flag = false;
+    out << "{";
+    for (const auto element : container) {
+        if(first_flag) out << ", "s << element ;
+        else {
+          out << element ;
+          first_flag = true;
+        }
+
+    }
+    out << "}";
+    return out;
+}
+
+template <typename AnyKey,typename AnyVal>
+ostream& operator<<(ostream &out, const map<AnyKey, AnyVal> &container) {
+    bool first_flag = false;
+    out << "{";
+    for (const auto [key, value] : container) {
+        if(first_flag) out << ", "s << key <<": " << value ;
+        else {
+          out << key <<": " << value ;
+          first_flag = true;
+        }
+
+    }
+    out << "}";
+    return out;
+}
 
 
+
+template <typename T, typename U>
+void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file,
+                     const string& func, unsigned line, const string& hint) {
+    if (t != u) {
+        cout << boolalpha;
+        cout << file << "("s << line << "): "s << func << ": "s;
+        cout << "ASSERT_EQUAL("s << t_str << ", "s << u_str << ") failed: "s;
+        cout << t << " != "s << u << "."s;
+        if (!hint.empty()) {
+            cout << " Hint: "s << hint;
+        }
+        cout << endl;
+        abort();
+    }
+}
+
+#define ASSERT_EQUAL(a, b) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, ""s)
+
+#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, (hint))
+
+void AssertImpl(bool value, const string& expr_str, const string& file, const string& func, unsigned line,
+                const string& hint) {
+    if (!value) {
+        cout << file << "("s << line << "): "s << func << ": "s;
+        cout << "ASSERT("s << expr_str << ") failed."s;
+        if (!hint.empty()) {
+            cout << " Hint: "s << hint;
+        }
+        cout << endl;
+        abort();
+    }
+}
+
+#define ASSERT(expr) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, ""s)
+
+#define ASSERT_HINT(expr, hint) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, (hint))
+
+
+
+// -------- Начало модульных тестов поисковой системы ----------
+
+// Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
+void TestExcludeStopWordsFromAddedDocumentContent() {
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3};
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("in"s);
+        ASSERT_EQUAL(found_docs.size(), 1u);
+        const Document& doc0 = found_docs[0];
+        ASSERT_EQUAL(doc0.id, doc_id);
+    }
+
+    {
+        SearchServer server;
+        server.SetStopWords("in the"s);
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        ASSERT_HINT(server.FindTopDocuments("in"s).empty(), "Stop words must be excluded from documents"s);
+    }
+}
+
+void TestAddDoc() {
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3};
+
+    SearchServer server;
+    server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+
+    ASSERT_HINT(server.GetDocumentCount() == 1, "Неправильно работает добавление файла.");
+    const auto found_docs = server.FindTopDocuments("cat"s);
+    ASSERT_HINT(found_docs.size() == 1, "Неправильно работает добавление файла.");
+
+    const Document& doc0 = found_docs[0];
+    ASSERT_HINT(doc0.id == doc_id, "Неверное добавление файла, айди добавленного не совпадает");
+}
+
+void TestMinusWord(){
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3};
+
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT_HINT(found_docs.size() == 1, "Неправильно работает добавление файла.");
+        const Document& doc0 = found_docs[0];
+        ASSERT_HINT(doc0.id == doc_id, "Неверное добавление файла, айди добавленного не совпадает");
+    }
+
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        ASSERT_HINT(server.FindTopDocuments("cat -city"s).empty(), "Не должны искаться документы содержащие минус слово" );
+    }
+}
+
+void TestMatching() {
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3};
+
+
+       {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT_HINT(found_docs.size() == 1, "Неправильно работает добавление файла.");
+        const Document& doc0 = found_docs[0];
+        ASSERT_HINT(doc0.id == doc_id, "Неверное добавление файла, айди добавленного не совпадает");
+        const auto tuple_Match  = server.MatchDocument("cat in city", 42);
+        vector<string> m_res = {"cat", "city" , "in" };
+        auto [vec_matc, id_m] = tuple_Match;
+
+        ASSERT_HINT(vec_matc == m_res, "Совпадение слов запроса и документо неверно");
+        }
+
+
+        {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT(found_docs.size() == 1);
+        const Document& doc0 = found_docs[0];
+        ASSERT(doc0.id == doc_id);
+        const auto tuple_Match  = server.MatchDocument("cat in -city", 42);
+        auto [vec_matc, id_m] = tuple_Match;
+        vector<string> m_res = {};
+        ASSERT_HINT(vec_matc == m_res, "Совпадение слов запроса и документо неверно при мину слове");
+        }
+}
+
+void TestRelevance(){
+    const int doc_id1 = 42;
+    const int doc_id2 = 43;
+    const int doc_id3 = 44;
+    const string content1 = "cat in the city"s;
+    const string content2 = "cat in the cat"s;
+    const string content3 = "cat in the city and cat"s;
+
+    const vector<int> ratings1 = {1, 2, 3};
+    const vector<int> ratings2 = {1, 3, 3};
+    const vector<int> ratings3 = {1, 5, 3};
+
+
+       {
+        SearchServer server;
+        server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
+        server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings2);
+        server.AddDocument(doc_id3, content3, DocumentStatus::ACTUAL, ratings3);
+        const auto found_docs = server.FindTopDocuments("cat"s);
+        ASSERT(found_docs.size() == 3);
+        const Document& doc1 = found_docs[0];
+        const Document& doc2 = found_docs[1];
+        const Document& doc3 = found_docs[2];
+        ASSERT_HINT(doc1.id == doc_id3, "Неверная сортировка по релевантности");
+        ASSERT_HINT(doc2.id == doc_id1, "Неверная сортировка по релевантности");
+        ASSERT_HINT(doc3.id == doc_id2, "Неверная сортировка по релевантности");
+
+        }
+}
+
+void TestAvRat(){
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3, 6, 8, 7};
+
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT(found_docs.size() == 1);
+        const Document& doc0 = found_docs[0];
+        ASSERT_HINT(doc0.rating == 4, "Неверно исчисляется средний рейтинг");
+    }
+
+}
+
+
+void TestPredictate(){
+    const int doc_id1 = 42;
+    const int doc_id2 = 43;
+    const int doc_id3 = 44;
+    const string content1 = "cat in the city"s;
+    const string content2 = "cat in the cat"s;
+    const string content3 = "cat in the city and cat"s;
+
+    const vector<int> ratings1 = {1, 2, 3};
+    const vector<int> ratings2 = {1, 3, 3};
+    const vector<int> ratings3 = {1, 5, 3};
+
+
+    SearchServer server;
+    server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
+    server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings2);
+    server.AddDocument(doc_id3, content3, DocumentStatus::ACTUAL, ratings3);
+    const auto found_docs = server.FindTopDocuments("city"s,[](int document_id, DocumentStatus , int ) {return document_id  == 42;});
+    ASSERT(found_docs.size() == 1);
+    const Document& doc1 = found_docs[0];
+    ASSERT_HINT(doc1.id == 42, "Неверно исполняется предиктат");
+
+
+}
+
+void TestStat(){
+    const int doc_id1 = 42;
+    const int doc_id2 = 43;
+    const int doc_id3 = 44;
+    const string content1 = "cat in the city"s;
+    const string content2 = "cat in the cat city"s;
+    const string content3 = "cat in the city and cat"s;
+
+    const vector<int> ratings1 = {1, 2, 3};
+    const vector<int> ratings2 = {1, 3, 3};
+    const vector<int> ratings3 = {1, 5, 3};
+
+
+    SearchServer server;
+    server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
+    server.AddDocument(doc_id2, content2, DocumentStatus::BANNED, ratings2);
+    server.AddDocument(doc_id3, content3, DocumentStatus::ACTUAL, ratings3);
+    const auto found_docs = server.FindTopDocuments("city"s , DocumentStatus::BANNED);
+    ASSERT(found_docs.size() == 1);
+    const Document& doc1 = found_docs[0];
+    ASSERT_HINT(doc1.id == 43, "Неверная сортировка по статусу");
+}
+
+void TestRelevanceCo(){
+        SearchServer server;
+        server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
+        server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
+        server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
+        server.AddDocument(3, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
+        const auto res = server.FindTopDocuments("пушистый ухоженный кот"s);
+        ASSERT_HINT((res[0].relevance - 0.866) < 1e-3, "Неверно высчитывается релевантность");
+}
+
+template <typename T>
+void RunTestImpl(T func, const string& f_name) {
+    func();
+    cerr << f_name << " OK" << endl;
+}
+
+#define RUN_TEST(func) RunTestImpl(func, #func)// напишите недостающий код
+
+// Функция TestSearchServer является точкой входа для запуска тестов
+void TestSearchServer() {
+    RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
+    RUN_TEST(TestAddDoc);
+    RUN_TEST(TestMinusWord);
+    RUN_TEST(TestMatching);
+    RUN_TEST(TestRelevance);
+    RUN_TEST(TestAvRat);
+    RUN_TEST(TestPredictate);
+    RUN_TEST(TestStat);
+    RUN_TEST(TestRelevanceCo);
+}
+
+//-----------------------------------------Тесты кончились----------------------------------------
+
+
+// Для отображения
 void PrintDocument(const Document& document) {
     cout << "{ "s
          << "document_id = "s << document.id << ", "s
@@ -309,6 +629,7 @@ void PrintDocument(const Document& document) {
 }
 
 int main() {
+    TestSearchServer();
     SearchServer search_server;
     search_server.SetStopWords("и в на"s);
 
@@ -334,3 +655,4 @@ int main() {
 
     return 0;
 }
+
