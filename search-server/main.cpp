@@ -1,5 +1,5 @@
 // search_server_s1_t2_v2.cpp
-
+#
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -9,10 +9,11 @@
 #include <utility>
 #include <vector>
 #include <cassert>
-
+#include <numeric>
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double DEAD_ZONE = 1e-6;
 
 string ReadLine() {
     string s;
@@ -105,7 +106,7 @@ public:
 
         sort(find_doc.begin(), find_doc.end(),
              [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < DEAD_ZONE) {
                     return lhs.rating > rhs.rating;
                 } else {
                     return lhs.relevance > rhs.relevance;
@@ -180,9 +181,8 @@ private:
             return 0;
         }
         int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -416,19 +416,34 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
 }
 
 void TestAddDoc() {
-    const int doc_id = 42;
+    const int doc_id0 = 42;
+    const int doc_id1 = 43;
+    const int doc_id2 = 44;
     const string content = "cat in the city"s;
     const vector<int> ratings = {1, 2, 3};
 
     SearchServer server;
-    server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+    server.AddDocument(doc_id0, content, DocumentStatus::ACTUAL, ratings);
 
     ASSERT_HINT(server.GetDocumentCount() == 1, "Неправильно работает добавление файла.");
-    const auto found_docs = server.FindTopDocuments("cat"s);
+    auto found_docs = server.FindTopDocuments("cat"s);
     ASSERT_HINT(found_docs.size() == 1, "Неправильно работает добавление файла.");
+    server.AddDocument(doc_id1, content, DocumentStatus::ACTUAL, ratings);
+    found_docs = server.FindTopDocuments("cat"s);
+    ASSERT_HINT(found_docs.size() == 2, "Неправильно работает добавление файла.");
+    server.AddDocument(doc_id2, content, DocumentStatus::ACTUAL, ratings);
+    found_docs = server.FindTopDocuments("cat"s);
+    ASSERT_HINT(found_docs.size() == 3, "Неправильно работает добавление файла.");
+
 
     const Document& doc0 = found_docs[0];
-    ASSERT_HINT(doc0.id == doc_id, "Неверное добавление файла, айди добавленного не совпадает");
+    const Document& doc1 = found_docs[1];
+    const Document& doc2 = found_docs[2];
+    ASSERT_HINT(doc0.id == doc_id0, "Неверное добавление файла, айди добавленного не совпадает");
+    ASSERT_HINT(doc1.id == doc_id1, "Неверное добавление файла, айди добавленного не совпадает");
+    ASSERT_HINT(doc2.id == doc_id2, "Неверное добавление файла, айди добавленного не совпадает");
+
+
 }
 
 void TestMinusWord(){
@@ -522,22 +537,42 @@ void TestRelevance(){
 void TestAvRat(){
     const int doc_id = 42;
     const string content = "cat in the city"s;
-    const vector<int> ratings = {1, 2, 3, 6, 8, 7};
+    const vector<int> ratings1 = {1, 2, 3, 6, 8, 7};
+    const vector<int> ratings2 = {-1, -2, -3, -6, -8, -7};
+    const vector<int> ratings3 = {-1, -2, -3, 6, 8, 7};
 
 
     {
         SearchServer server;
-        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings1);
         const auto found_docs = server.FindTopDocuments("city"s);
         ASSERT(found_docs.size() == 1);
         const Document& doc0 = found_docs[0];
         ASSERT_HINT(doc0.rating == 4, "Неверно исчисляется средний рейтинг");
     }
 
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings2);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT(found_docs.size() == 1);
+        const Document& doc0 = found_docs[0];
+        ASSERT_HINT(doc0.rating == -4, "Неверно исчисляется средний рейтинг c отрицательными");
+    }
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings3);
+        const auto found_docs = server.FindTopDocuments("city"s);
+        ASSERT(found_docs.size() == 1);
+        const Document& doc0 = found_docs[0];
+        ASSERT_HINT(doc0.rating == 2, "Неверно исчисляется средний рейтинг cмешаный");
+    }
+
 }
 
 
-void TestPredictate(){
+void TestPredicate(){
     const int doc_id1 = 42;
     const int doc_id2 = 43;
     const int doc_id3 = 44;
@@ -566,33 +601,55 @@ void TestStat(){
     const int doc_id1 = 42;
     const int doc_id2 = 43;
     const int doc_id3 = 44;
+    const int doc_id4 = 45;
+
     const string content1 = "cat in the city"s;
     const string content2 = "cat in the cat city"s;
     const string content3 = "cat in the city and cat"s;
+    const string content4 = "cat in the city and dat"s;
 
     const vector<int> ratings1 = {1, 2, 3};
     const vector<int> ratings2 = {1, 3, 3};
     const vector<int> ratings3 = {1, 5, 3};
+    const vector<int> ratings4 = {2, 5, 3};
 
 
     SearchServer server;
-    server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
+    server.AddDocument(doc_id1, content1, DocumentStatus::IRRELEVANT, ratings1);
     server.AddDocument(doc_id2, content2, DocumentStatus::BANNED, ratings2);
     server.AddDocument(doc_id3, content3, DocumentStatus::ACTUAL, ratings3);
-    const auto found_docs = server.FindTopDocuments("city"s , DocumentStatus::BANNED);
+    server.AddDocument(doc_id4, content4, DocumentStatus::REMOVED, ratings4);
+
+    auto found_docs = server.FindTopDocuments("city"s , DocumentStatus::BANNED);
     ASSERT(found_docs.size() == 1);
-    const Document& doc1 = found_docs[0];
+    Document& doc1 = found_docs[0];
     ASSERT_HINT(doc1.id == 43, "Неверная сортировка по статусу");
+
+    found_docs = server.FindTopDocuments("city"s , DocumentStatus::IRRELEVANT);
+    ASSERT(found_docs.size() == 1);
+    doc1 = found_docs[0];
+    ASSERT_HINT(doc1.id == 42, "Неверная сортировка по статусу");
+
+    found_docs = server.FindTopDocuments("city"s , DocumentStatus::ACTUAL);
+    ASSERT(found_docs.size() == 1);
+    doc1 = found_docs[0];
+    ASSERT_HINT(doc1.id == 44, "Неверная сортировка по статусу");
+
+    found_docs = server.FindTopDocuments("city"s , DocumentStatus::REMOVED);
+    ASSERT(found_docs.size() == 1);
+    doc1 = found_docs[0];
+    ASSERT_HINT(doc1.id == 45, "Неверная сортировка по статусу");
 }
 
 void TestRelevanceCo(){
+        double LOC_DEAD_ZONE = 1e-3;
         SearchServer server;
         server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
         server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
         server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
         server.AddDocument(3, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
         const auto res = server.FindTopDocuments("пушистый ухоженный кот"s);
-        ASSERT_HINT((res[0].relevance - 0.866) < 1e-3, "Неверно высчитывается релевантность");
+        ASSERT_HINT(abs(res[0].relevance - 0.866) < LOC_DEAD_ZONE, "Неверно высчитывается релевантность");
 }
 
 template <typename T>
@@ -611,7 +668,7 @@ void TestSearchServer() {
     RUN_TEST(TestMatching);
     RUN_TEST(TestRelevance);
     RUN_TEST(TestAvRat);
-    RUN_TEST(TestPredictate);
+    RUN_TEST(TestPredicate);
     RUN_TEST(TestStat);
     RUN_TEST(TestRelevanceCo);
 }
