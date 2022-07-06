@@ -9,10 +9,12 @@
 #include <utility>
 #include <vector>
 #include <optional>
+#include <numeric>
 
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double DEAD_ZONE = 1e-6;
 
 string ReadLine() {
     string s;
@@ -121,13 +123,17 @@ public:
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const{
 
         Query query;
-        if (!ParseQuery(raw_query, query)) {
-            throw invalid_argument("Поисковый запрос содержит некорректные символы или знак тире без слова или двойное тире");
+        //Ловлю исключение из метода ParseQuery
+        try {
+          query = ParseQuery(raw_query);
+        } catch (const invalid_argument& e) {
+            throw invalid_argument(e.what());
         }
+
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+            if (abs(lhs.relevance - rhs.relevance) < DEAD_ZONE) {
                 return lhs.rating > rhs.rating;
             } else {
                 return lhs.relevance > rhs.relevance;
@@ -168,8 +174,11 @@ public:
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
 
         Query query;
-        if (!ParseQuery(raw_query, query)) {
-            throw invalid_argument("Поисковый запрос содержит некорректные символы или знак тире без слова или двойное тире");
+        //Ловлю исключение из метода ParseQuery
+        try {
+          query = ParseQuery(raw_query);
+        } catch (const invalid_argument& e) {
+            throw invalid_argument(e.what());
         }
 
         vector<string> matched_words;
@@ -235,9 +244,8 @@ private:
             return 0;
         }
         int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -247,12 +255,12 @@ private:
         bool is_stop;
     };
 
-    [[nodiscard]] bool ParseQueryWord(string text, QueryWord& result) const {
+    QueryWord ParseQueryWord(string text) const {
         // Empty result by initializing it with default constructed QueryWord
-        result = {};
+        QueryWord result = {};
 
         if (text.empty()) {
-            return false;
+            throw invalid_argument("Пустой запрос");
         }
         bool is_minus = false;
         if (text[0] == '-') {
@@ -260,11 +268,13 @@ private:
             text = text.substr(1);
         }
         if (text.empty() || text[0] == '-' || !IsValidWord(text)) {
-            return false;
+
+            throw invalid_argument("Поисковый запрос содержит некорректные символы или знак тире без слова или двойное тире");
+
         }
 
         result = QueryWord{text, is_minus, IsStopWord(text)};
-        return true;
+        return result;
     }
 
     struct Query {
@@ -272,14 +282,20 @@ private:
         set<string> minus_words;
     };
 
-    [[nodiscard]] bool ParseQuery(const string& text, Query& result) const {
+    Query ParseQuery(const string& text) const {
         // Empty result by initializing it with default constructed Query
-        result = {};
+        Query result = {};
         for (const string& word : SplitIntoWords(text)) {
-            QueryWord query_word;
-            if (!ParseQueryWord(word, query_word)) {
-                return false;
+
+        //Ловлю исключение из метода ParseQueryWord
+            try {
+               ParseQueryWord(word);
+            } catch (const invalid_argument& e) {
+               throw invalid_argument(e.what());
             }
+
+            QueryWord query_word = ParseQueryWord(word);
+
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
                     result.minus_words.insert(query_word.data);
@@ -288,7 +304,7 @@ private:
                 }
             }
         }
-        return true;
+        return result;
     }
 
     // Existence required
