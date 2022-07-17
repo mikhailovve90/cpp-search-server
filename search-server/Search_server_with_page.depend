@@ -1,0 +1,52 @@
+# depslib dependency file v1.0
+1658072297 source:/home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/main.cpp
+	<deque>
+	"document.h"
+	"paginator.h"
+	"read_input_functions.h"
+	"search_server.h"
+	"request_queue.h"
+	<iostream>
+
+1658066713 source:/home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/document.cpp
+	"./headers/document.h"
+
+1658066725 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/document.h
+
+1658067192 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/paginator.h
+	<vector>
+
+1658067661 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/read_input_functions.h
+	<string>
+
+1658067785 source:/home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/read_input_functions.cpp
+	"read_input_functions.h"
+	<iostream>
+
+1658071297 source:/home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/string_processing.cpp
+	<string_processing.h>
+
+1658071271 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/string_processing.h
+	<string>
+	<vector>
+	<set>
+
+1658071701 source:/home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/search_server.cpp
+	"search_server.h"
+	<cmath>
+
+1658071597 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/search_server.h
+	"document.h"
+	<string>
+	<vector>
+	<tuple>
+	<map>
+	<set>
+	<algorithm>
+	<stdexcept>
+	<string_processing.h>
+
+1658072814 /home/vladimir/cpp/four_sprint/SearchServer_with_PAGE/Search_server_with_page/headers/request_queue.h
+	"search_server.h"
+	<deque>
+
