@@ -10,6 +10,7 @@
 #include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double DEAD_ZONE = 1e-6;
 
 enum class DocumentStatus {
     ACTUAL,
@@ -20,6 +21,9 @@ enum class DocumentStatus {
 
 class SearchServer {
 public:
+     using Iterator_map  = typename std::map<int, std::map<std::string, double>>::iterator;
+     using Iterator_id  = typename std::set<int>::iterator;
+
     template <typename StringContainer>
     explicit SearchServer(const StringContainer& stop_words)
         : stop_words_(MakeUniqueNonEmptyStrings(stop_words))  // Extract non-empty stop words
@@ -33,6 +37,8 @@ public:
 
 
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
+    //Удаление документа
+    void RemoveDocument(int document_id);
 
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
@@ -41,7 +47,7 @@ public:
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (std::abs(lhs.relevance - rhs.relevance) < 1e-6) {
+            if (std::abs(lhs.relevance - rhs.relevance) < DEAD_ZONE) {
                 return lhs.rating > rhs.rating;
             } else {
                 return lhs.relevance > rhs.relevance;
@@ -54,6 +60,7 @@ public:
         return matched_documents;
     }
 
+
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
 
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
@@ -64,6 +71,11 @@ public:
 
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
+    Iterator_id begin();
+    Iterator_id end();
+
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
 private:
     struct DocumentData {
         int rating;
@@ -73,10 +85,16 @@ private:
     const std::set<std::string> stop_words_;
 
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    //Для быстрого возврата слов в документе по айди
+    std::map<int, std::map<std::string, double>> id_words_freg;
+    //Для пустого возврата слов
+    std::map<std::string, double> zero_res_;
+
+    std::set<int> set_id_;
 
     std::map<int, DocumentData> documents_;
 
-    std::vector<int> document_ids_;
+    //std::vector<int> document_ids_;
 
     bool IsStopWord(const std::string& word) const;
 

@@ -1,8 +1,6 @@
 #include "search_server.h"
+
 #include <cmath>
-
-
-
 
 SearchServer::SearchServer(const std::string& stop_words_text)
   :SearchServer(SplitIntoWords(stop_words_text)){}
@@ -18,10 +16,32 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
   const double inv_word_count = 1.0 / words.size();
   for (const std::string& word : words) {
       word_to_document_freqs_[word][document_id] += inv_word_count;
+      // Мапа хранящие айди документов, слова и частоту их упоминания в запросе
+      id_words_freg[document_id][word] += inv_word_count;
   }
   documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
-  document_ids_.push_back(document_id);
+  set_id_.insert(document_id);
 }
+
+
+//Удаление документа
+void SearchServer::RemoveDocument(const int document_id){
+  if(documents_.count(document_id)){
+    for(const auto [key, _] : id_words_freg[document_id]){
+        auto remove_freqs_word = word_to_document_freqs_[key].find(document_id);
+        word_to_document_freqs_[key].erase(remove_freqs_word);
+    }
+
+
+    //auto remove_iter_doc = documents_.find(document_id);
+    documents_.erase(documents_.find(document_id));
+    set_id_.erase(set_id_.find(document_id));
+    id_words_freg.erase(id_words_freg.find(document_id));
+  }
+
+}
+
+
 
 //Поиск документов
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
@@ -38,9 +58,21 @@ int SearchServer::GetDocumentCount() const {
   return documents_.size();
 }
 
-int SearchServer::GetDocumentId(int index) const {
-  return document_ids_.at(index);
+//int SearchServer::GetDocumentId(int index) const {
+//  return document_ids_.at(index);
+//}
+
+SearchServer::Iterator_id SearchServer::begin(){ return  set_id_.begin();}
+SearchServer::Iterator_id SearchServer::end(){ return  set_id_.end();}
+
+const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const{
+
+  if(id_words_freg.count(document_id)) return id_words_freg.at(document_id);
+
+  return zero_res_;
+
 }
+
 
 //Совпадающие слова в документах
 std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(const std::string& raw_query, int document_id) const {
