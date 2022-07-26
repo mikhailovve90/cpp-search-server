@@ -7,6 +7,8 @@
 #include <set>
 #include <algorithm>
 #include <stdexcept>
+#include <cmath>
+#include <numeric>
 #include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
@@ -98,25 +100,12 @@ private:
 
     bool IsStopWord(const std::string& word) const;
 
-    static bool IsValidWord(const std::string& word) {
-      return none_of(word.begin(), word.end(), [](char c) {return c >= '\0' && c < ' ';});
-    }
+    static bool IsValidWord(const std::string& word);
 
 
     std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
 
-    static int ComputeAverageRating(const std::vector<int>& ratings) {
-      if (ratings.empty()) {
-        return 0;
-      }
-
-      int rating_sum = 0;
-      for (const int rating : ratings) {
-        rating_sum += rating;
-      }
-      return rating_sum / static_cast<int>(ratings.size());
-    }
-
+    static int ComputeAverageRating(const std::vector<int>& ratings);
 
 
     struct QueryWord {
@@ -170,4 +159,5 @@ private:
         return matched_documents;
     }
 };
+
 

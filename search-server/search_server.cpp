@@ -1,9 +1,26 @@
 #include "search_server.h"
 
-#include <cmath>
-
 SearchServer::SearchServer(const std::string& stop_words_text)
   :SearchServer(SplitIntoWords(stop_words_text)){}
+
+//Проверка слова на валидность и отсутствие недопустимых символов
+bool SearchServer::IsValidWord(const std::string& word) {
+  return none_of(word.begin(), word.end(), [](char c) {return c >= '\0' && c < ' ';});
+}
+
+//Подсчёт среднего
+int SearchServer::ComputeAverageRating(const std::vector<int>& ratings) {
+  if (ratings.empty()) {
+    return 0;
+  }
+
+  int rating_sum = 0;
+  //Накопленное значение всего вектора
+  rating_sum = std::accumulate(ratings.begin(), ratings.end(), 0);
+
+  return rating_sum / static_cast<int>(ratings.size());
+}
+
 
 //Добавление документа
 void SearchServer::AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings) {
@@ -154,4 +171,5 @@ SearchServer::Query SearchServer::ParseQuery(const std::string& text) const {
 double SearchServer::ComputeWordInverseDocumentFreq(const std::string& word) const {
     return std::log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
 }
+
 
