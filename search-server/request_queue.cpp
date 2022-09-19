@@ -1,16 +1,16 @@
 #include "request_queue.h"
 
-RequestQueue::RequestQueue(const SearchServer &search_server) :server_for_empty_stat(search_server){}
+RequestQueue::RequestQueue(SearchServer &search_server) :server_for_empty_stat(search_server){}
 
-std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentStatus status) {
+std::vector<Document> RequestQueue::AddFindRequest(const std::string_view raw_query, DocumentStatus status) {
     QueryResult result;
-    result.doc_result = server_for_empty_stat.FindTopDocuments(raw_query, status);
+    result.doc_result = server_for_empty_stat.FindTopDocuments(std::execution::seq, raw_query, status);
     result.IsEmpty = IsFindDocEmpty(result.doc_result);
     PushPop(result);
     return result.doc_result;
 }
 
-std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query) {
+std::vector<Document> RequestQueue::AddFindRequest(const std::string_view raw_query) {
     QueryResult result;
     result.doc_result = server_for_empty_stat.FindTopDocuments(raw_query);
     result.IsEmpty = IsFindDocEmpty(result.doc_result);

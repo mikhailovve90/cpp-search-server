@@ -4,9 +4,9 @@ void RemoveDuplicates(SearchServer &s_s){
   auto end_ = s_s.end();
   std::set<int> doc_on_delete;
   //Множество где ключЁм является множество
-  std::set<std::set<std::string>> result;
+  std::set<std::set<std::string_view >> result;
   //Ключ на данной итерации
-  std::set<std::string> key;
+  std::set<std::string_view> key;
 
   for(auto j = s_s.begin(); j != end_; ++j){
     auto id = *j;
@@ -23,4 +23,3 @@ void RemoveDuplicates(SearchServer &s_s){
     s_s.RemoveDocument(id);
   }
 }
-

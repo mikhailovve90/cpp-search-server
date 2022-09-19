@@ -4,7 +4,7 @@
 
 class RequestQueue {
 public:
-    explicit RequestQueue(const SearchServer &search_server);
+    explicit RequestQueue(SearchServer &search_server);
 
 
     template <typename DocumentPredicate>
@@ -16,9 +16,9 @@ public:
         return result.doc_result;
     }
 
-    std::vector<Document> AddFindRequest(const std::string& raw_query, DocumentStatus status);
+    std::vector<Document> AddFindRequest(const std::string_view raw_query, DocumentStatus status);
 
-    std::vector<Document> AddFindRequest(const std::string& raw_query);
+    std::vector<Document> AddFindRequest(const std::string_view raw_query);
 
     int GetNoResultRequests() const;
 private:
@@ -31,7 +31,7 @@ private:
     const static int min_in_day_ = 1440;
     int empty_query_ = 0;
     //Ссылка на сукмук
-    const SearchServer &server_for_empty_stat;
+    SearchServer &server_for_empty_stat;
 
     bool IsFindDocEmpty(const std::vector<Document> &find_result);
 
